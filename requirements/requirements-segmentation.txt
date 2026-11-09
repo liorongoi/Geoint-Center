@@ -1,0 +1,2 @@
+# SAM 3 interactive ONNX adapter. Model pack is staged separately for offline use.
+onnxruntime==1.31.1

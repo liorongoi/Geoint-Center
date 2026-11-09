@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10171a">
+  <title>Geo Intelligence · Geospatial intelligence workspace</title>
+  <link rel="icon" type="image/svg+xml" href="/static/branding/geo-intelligence-icon.svg">
+  <link rel="stylesheet" href="/static/fonts/fonts.css?v=0.2.21">
+  <link rel="stylesheet" href="/static/styles.css?v=0.2.21">
+  <link rel="stylesheet" href="/static/workflow-ui.css?v=0.2.21">
+  <link rel="stylesheet" href="/static/help.css?v=validation-2">
+  <link rel="stylesheet" href="/static/services.css?v=0.2.21">
+  <link rel="stylesheet" href="/static/branding.css?v=0.2.21">
+  <link rel="stylesheet" href="/static/insights.css?v=0.2.21">
+  <link rel="stylesheet" href="/static/basemap-manager.css?v=0.2.21">
+  <link rel="stylesheet" href="/static/local-library.css?v=0.2.21">
+  <link rel="stylesheet" href="/static/viewport.css?v=0.2.25">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><a href="/" class="brand-home" aria-label="Geo Intelligence entry page"><img class="brand-logo" data-brand-logo src="/static/branding/geo-intelligence-dark.svg" alt="Geo Intelligence logo"><span>Geo Intelligence</span></a><span class="workspace-tag brand-slogan" data-brand-slogan>From imagery to intelligence.</span></div>
+      <div class="topbar-right"><small id="appVersion" aria-label="Application version"></small><span class="connection" id="connectivityStatus" role="status" aria-live="polite"><b></b> CHECKING CONNECTION</span><button class="topbar-nav monitor-shortcut" id="monitorFoldersButton" type="button">▣ Monitor folders</button><button class="topbar-nav" id="insightsButton" type="button">Insights & layers</button><button class="topbar-nav" id="missionsButton" type="button">Mission workspace <span id="missionCountBadge">0</span></button><button class="help-launch" id="helpButton" type="button" title="Help & user manual (F1)" aria-haspopup="dialog" aria-controls="helpDialog"><span aria-hidden="true">?</span> Help</button></div>
+    </header>
+
+    <main class="layout" id="layout">
+      <aside class="sidebar" id="searchFilters" aria-label="Search filters">
+        <div class="sidebar-heading"><div><div class="eyebrow">DISCOVER & COMPARE</div><h1>Find imagery</h1></div><span class="step-badge">01</span></div>
+        <p class="intro">Search open satellite archives by place and time. Inspect scene footprints, then select imagery for your next analysis.</p>
+
+        <section class="panel-section">
+          <div class="section-heading"><span class="section-number">A</span><h2>Catalog</h2></div>
+          <label class="field-label" for="catalog">DATA SOURCE</label>
+          <select id="catalog" class="select-field">
+            <option value="local">Local imagery · imported files</option>
+            <option value="sentinel-2">Sentinel-2 · Level-2A</option>
+            <option value="sentinel-2-l1c">Sentinel-2 · Level-1C · pretrained LULC</option>
+            <option value="landsat">Landsat · Collection 2 Level-2</option>
+            <option value="hls-l30">HLS L30 · Landsat 30 m</option>
+            <option value="hls-s30">HLS S30 · Sentinel-2 30 m</option>
+            <option value="cbers-4a-wpm">CBERS-4A WPM · 2 m pan / 8 m multispectral</option>
+            <option value="eo1-hyperion">EO-1 Hyperion · Level 1T</option>
+          </select>
+          <div class="source-note"><span class="source-dot"></span><span id="sourceName">Copernicus Data Space</span><a id="sourceLink" href="https://dataspace.copernicus.eu/" target="_blank" rel="noreferrer">↗</a></div>
+          <button class="secondary-button full-width" id="importLocalImagery" type="button" style="margin-top:12px">+ Import local imagery</button>
+          <input id="localImageryFiles" type="file" accept=".tif,.tiff,.jp2,.xml,.txt,.json" multiple hidden>
+          <button class="secondary-button full-width" id="importImageryFolder" type="button" style="margin-top:8px">＋ Import multiband folder</button>
+          <input id="localImageryFolder" type="file" webkitdirectory multiple hidden>
+          <section class="monitor-entry" aria-label="Folder monitoring"><div class="monitor-entry-heading"><span class="monitor-icon" aria-hidden="true">▣</span><strong>Folder monitoring</strong><span id="monitorSummaryBadge" class="monitor-badge">Loading…</span></div><p id="monitorSummary">Keep your local imagery catalog up to date.</p><button class="secondary-button full-width" id="localLibraryButton" type="button">Manage folders &amp; image library →</button><small>Enable each folder with its monitoring checkbox.</small></section><p id="offlineCatalogHint" class="offline-hint" hidden>Offline mode · online catalogs are unavailable. Browse your local library to see images from any date or location.</p>
+          <p class="section-help">Separate bands are grouped into one image. Select all band files or their folder. Folder monitoring runs only when its checkbox is checked.</p>
+        </section>
+
+        <section class="panel-section aoi-section">
+          <div class="section-heading"><span class="section-number">B</span><h2>Area of interest</h2></div>
+          <p class="section-help">Draw a rectangle or polygon with the map toolbar, or set a point by coordinates.</p>
+          <div class="point-inputs">
+            <label><span>LONGITUDE</span><input id="longitude" type="number" step="any" placeholder="e.g. 35.21"></label>
+            <label><span>LATITUDE</span><input id="latitude" type="number" step="any" placeholder="e.g. 31.77"></label>
+          </div>
+          <button class="secondary-button full-width" id="setPoint"><span>＋</span> Place point AOI</button>
+          <div class="aoi-status" id="aoiStatus"><span class="status-mark">⌖</span><span>Waiting for an AOI on the map</span></div>
+        </section>
+
+        <section class="panel-section">
+          <div class="section-heading"><span class="section-number">C</span><h2>Acquisition window</h2></div>
+          <div class="date-grid">
+            <label class="field-label">FROM<input id="dateFrom" type="date" class="input-field"></label>
+            <label class="field-label">TO<input id="dateTo" type="date" class="input-field"></label>
+          </div>
+          <div class="range-row"><label for="cloudMax" class="field-label">MAX CLOUD COVER</label><span id="cloudValue" class="range-value">30%</span></div>
+          <input id="cloudMax" type="range" min="0" max="100" value="30" class="range-input">
+          <div class="range-captions"><span>CLEARER</span><span>MORE SCENES</span></div>
+        </section>
+
+        <button class="primary-button full-width" id="searchButton"><span class="search-icon">⌕</span><span>Search catalog</span><kbd>↵</kbd></button>
+        <div class="search-message" id="searchMessage" role="status"></div>
+
+        <section class="upload-card">
+          <div class="upload-copy"><span class="upload-icon">↑</span><div><strong>Quick single-file preview</strong><span>For a complete band product, use Import local imagery or Import multiband folder above.</span></div></div>
+          <input id="fileInput" type="file" accept=".tif,.tiff,image/tiff" hidden>
+          <button class="upload-button" id="uploadButton">Preview single GeoTIFF</button>
+          <div class="upload-options" id="uploadOptions">
+            <label>DISPLAY<select id="uploadMode"><option value="rgb">RGB composite</option><option value="singleband">Single band</option></select></label>
+            <label id="bandsLabel">RGB BANDS<input id="rgbBands" value="1,2,3" aria-label="RGB band numbers"></label>
+            <label id="singleBandLabel" class="hidden">BAND<input id="singleBand" type="number" min="1" value="1"></label>
+          </div>
+          <div class="upload-progress" id="uploadMessage" role="status"></div>
+        </section>
+        <footer class="sidebar-footer"><span>Powered by <b>MC² MapControl</b></span><a href="https://github.com/ESIPFed/mc2" target="_blank" rel="noreferrer">Apache-2.0 ↗</a></footer>
+      </aside>
+
+      <section class="map-workspace" id="mapWorkspace">
+        <div class="workspace-tabs" role="tablist" aria-label="Workspace view">
+          <button class="workspace-tab" id="filtersTabButton" type="button" role="tab" aria-selected="false" aria-controls="searchFilters">Filters</button>
+          <button class="workspace-tab active" id="mapTabButton" type="button" data-view="map" role="tab" aria-selected="true">Map</button>
+          <button class="workspace-tab" id="resultsTabButton" type="button" data-view="results" role="tab" aria-selected="false">Results <span id="mobileResultCount">0</span></button>
+        </div>
+        <div class="map-toolbar">
+          <div class="map-title"><span class="live-dot"></span><div><strong>Map workspace</strong><span>Use the toolbar on the map to draw your search area</span></div></div>
+          <div class="map-tools"><label class="basemap-select"><span>MAP THEME</span><select id="mapTheme" aria-label="Map controls theme"><option value="dark">Dark</option><option value="light">Light</option><option value="auto">Follow system</option></select></label><button class="map-action" id="manageBasemapsButton" type="button">＋ Add map / orthophoto</button><button class="map-action" id="refreshAoi" title="Read the latest shape drawn on the map">⌖ <span>Use drawn area</span></button><label class="basemap-select"><span>BASEMAP</span><select id="basemap"><option value="satellite">Satellite</option><option value="osm">OpenStreetMap</option><option value="carto_dark">Dark</option></select></label></div>
+        </div>
+        <div class="map-frame-wrap" id="mapWrap"><div class="map-loading" id="mapLoading"><span class="loader"></span><strong>Starting map workspace</strong><span>Connecting to MC²</span></div><iframe id="mapFrame" title="MC² satellite map" allow="fullscreen" loading="eager"></iframe><section id="analysisMapReview" class="analysis-map-review hidden" aria-label="Analysis result legend"></section><div class="map-attribution">ESRI · OpenStreetMap · MapLibre / MC²</div></div>
+        <div class="map-legend"><span class="legend-item"><i class="footprint-swatch"></i>Catalog scene footprint</span><span class="legend-item"><i class="aoi-swatch"></i>Area of interest</span><span class="legend-note">Scene footprints update after search</span></div>
+        <div class="results-block" id="resultsBlock">
+          <div class="catalog-tabs" role="tablist" aria-label="Imagery catalogs">
+            <button type="button" id="onlineCatalogTab" role="tab" aria-selected="true" aria-controls="catalogResultsPanel" tabindex="0">Online catalogs <span id="onlineCatalogCount">0</span></button>
+            <button type="button" id="localCatalogTab" role="tab" aria-selected="false" aria-controls="catalogResultsPanel" tabindex="-1">Local imagery <span id="localCatalogCount">0</span></button>
+          </div>
+          <p class="catalog-tab-status" id="catalogTabStatus" role="status">Search online or browse monitored and imported images. Select from both for one job.</p>
+          <div id="catalogResultsPanel" role="tabpanel" aria-labelledby="onlineCatalogTab">
+          <div class="results-heading"><div><div class="eyebrow">SEARCH RESULTS</div><h2><span id="resultCount">0</span> <span id="resultNoun">images</span> <span class="result-total" id="resultTotal"></span></h2></div><button class="text-button" id="selectAll">Select all</button></div>
+          <div class="selection-bar"><span><b id="selectedCount">0</b> selected <small id="selectionSources"></small></span><button class="text-button" id="clearSelection">Clear all</button></div>
+          <div class="scene-list" id="sceneList"><div class="empty-scenes">Choose a catalog, define an AOI and date range, then search. Matching scenes will be listed here.</div></div>
+          <button class="secondary-button full-width load-more-button hidden" id="loadMoreButton">Load more catalog results</button>
+          </div>
+          <button class="secondary-button full-width" id="catalogDownloadsButton">Download online imagery to a folder</button>
+          <button class="secondary-button full-width hidden" id="buildHLSBundle" type="button" aria-describedby="hlsBundleHint" disabled>Build 3-date HLS bundle</button>
+          <p class="catalog-tab-status hidden" id="hlsBundleHint" role="status"></p>
+          <button class="secondary-button full-width selection-action" id="continueButton" disabled>Add selected scenes to a mission <span>→</span></button>
+        </div>
+      </section>
+    </main>
+    <main class="mission-workspace hidden" id="missionWorkspace">
+      <section class="mission-hub" id="missionHub">
+        <div class="mission-page-heading"><div><div class="eyebrow">ANALYSIS OPERATIONS</div><h1>Missions</h1><p>Organize imagery into missions and jobs, then prepare analysis plans.</p></div><button class="primary-button new-mission-button" id="newMissionButton">＋ New mission</button></div>
+        <div class="mission-grid" id="missionGrid"></div>
+        <div class="mission-empty hidden" id="missionEmpty"><div class="empty-orbit">◎</div><h2>No missions yet</h2><p>Select scenes in the catalog and add them to a new mission, or create an empty mission to start planning.</p><button class="secondary-button" id="emptyNewMissionButton">Create your first mission</button></div>
+      </section>
+      <section class="mission-detail hidden" id="missionDetail">
+        <div class="mission-detail-header"><button class="back-link" id="backToMissions">← All missions</button><div class="mission-title-row"><div><div class="eyebrow">MISSION / ANALYSIS WORKSPACE</div><h1 id="detailMissionName"></h1><p id="detailMissionMeta"></p></div><button class="secondary-button mission-actions-toggle" id="missionActionsToggle" type="button" aria-expanded="false" aria-controls="missionActions">Mission actions</button><div class="mission-actions" id="missionActions"><span class="status-pill draft-pill" id="missionStatus">DRAFT</span><button class="secondary-button" id="pauseMissionButton" title="Pause at the next safe processing checkpoint">Pause</button><button class="secondary-button hidden" id="resumeMissionButton">Resume</button><button class="secondary-button" id="stopMissionButton" title="Stop processing and keep completed results">Stop</button><button class="secondary-button" id="deleteMissionButton">Remove mission</button><button class="secondary-button" id="renameMissionButton">Edit mission</button><button class="primary-button add-scenes-button" id="addScenesButton">＋ Add selected scenes</button></div></div>
+        </div>
+        <p id="missionControlMessage" role="status" aria-live="polite" style="margin:0 0 16px"></p>
+        <div class="mission-guide"><div><b id="missionGuideTitle">Start with your images</b><p id="missionGuideText">Add images, select a job, and choose an analysis model.</p></div><button id="missionNextAction" type="button" class="primary-button">Choose images & models</button></div>
+        <nav class="mission-tabs workflow-nav" aria-label="Mission workspaces">
+          <button class="mission-tab" type="button" data-mission-tab="automatic">1. Automatic pipelines</button>
+          <button class="mission-tab" type="button" data-mission-tab="qualification">2. Training & qualification</button>
+          <button class="mission-tab" type="button" data-mission-tab="inference">3. Manual inference</button>
+          <button class="mission-tab workflow-logs-launch" type="button" id="workflowLogsButton">Activity & Logs</button>
+          <details class="mission-more"><summary>Data & results</summary><div><button class="mission-tab" id="servicesButton" type="button">Services & workers</button><button class="mission-tab" data-mission-tab="rasters">Source data <span id="rasterAccessBadge">0</span></button><button class="mission-tab" data-mission-tab="reports">Runs & results <span id="reportCountBadge">0</span></button><button class="mission-tab" data-mission-tab="viewer">Review on image</button><button class="mission-tab" data-mission-tab="training">Label data</button><button class="mission-tab" data-mission-tab="anomalies">Spectral anomalies</button><button class="mission-tab" data-mission-tab="insights">Saved layers & Insights</button></div></details>
+        </nav>
+        <section id="missionAutomation" class="wf hidden" aria-label="Automatic pipeline workspace"></section>
+        <section id="missionQualification" class="wf hidden" aria-label="Training and qualification workspace"></section>
+        <section id="missionOperational" class="wf hidden" aria-label="Manual inference workspace"></section>
+        <section id="missionViewerPanel" class="hidden" aria-label="Mission image and result comparison">
+          <div class="mission-viewer-heading"><div><h2>Image & result</h2><p id="missionViewerStatus" role="status">Choose a result in Runs & results to view it over its source image.</p></div><button type="button" class="secondary-button" id="missionViewerReports">Choose another result</button></div>
+          <p class="panel-intro">Drag the divider to reveal the original. Scroll to zoom; drag the image to pan. Click a pixel to inspect its classification.</p>
+          <div class="mission-viewer-content"><div id="imageComparison" class="image-comparison"></div><aside id="missionViewerInspector"></aside></div>
+        </section>
+        <div class="analysis-layout" id="analysisPlanPanel">
+          <section class="hierarchy-card">
+            <div class="card-heading"><div><div class="eyebrow">MISSION CONTENTS</div><h2>Jobs & imagery</h2></div><span class="count-chip" id="hierarchyCounts">0 jobs · 0 images</span></div>
+            <div class="hierarchy-table-wrap" id="hierarchyTree"></div>
+          </section>
+          <aside class="analysis-side">
+            <section class="algorithm-card">
+              <div class="card-heading"><div><div class="eyebrow">ANALYSIS PLAN</div><h2>Choose algorithms</h2></div><span class="plan-step">02</span></div>
+              <p class="panel-intro">Select a job or specific images on the left, then choose the algorithms to apply.</p>
+              <div class="target-summary" id="targetSummary"><span class="target-icon">⌖</span><span>Select a job or image to configure</span></div>
+              <div class="algorithm-list" id="algorithmList"></div>
+              <button class="secondary-button full-width save-plan-button" id="savePlanButton" disabled>Save analysis plan</button>
+            </section>
+            <section class="inference-card">
+              <div class="inference-card-heading"><span class="inference-icon">◌</span><div><div class="eyebrow">INFERENCE PIPELINE</div><h2>Run analysis</h2></div></div>
+              <div class="pipeline-progress" id="pipelineProgress" role="progressbar" aria-label="Inference progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="pipeline-progress-fill" id="pipelineProgressFill"></div></div>
+              <p id="pipelineProgressText" class="panel-intro" aria-live="polite">Select images and a model to prepare analysis</p>
+              <div class="pipeline-steps"><div class="pipeline-step active"><span>1</span><div><b>Prepare imagery</b><small>Scene assets and bands</small></div></div><div class="pipeline-step"><span>2</span><div><b>Run algorithms</b><small>Model inference</small></div></div><div class="pipeline-step"><span>3</span><div><b>Review outputs</b><small>Maps and measurements</small></div></div></div>
+              <div class="engine-notice"><span>◈</span><div><b>Connected model workers</b><p>Workers train from your reviewed labels and process source pixels. Prithvi-EO-2.0 uses a pretrained encoder and a supervised classification head. Reports show actual predictions and model failures.</p></div></div>
+              <label class="run-option"><input type="checkbox" id="bandAlignment" checked> Align image bands to a NIR reference before analysis</label>
+              <select class="select-field run-combination" id="combinationMode"><option value="adaptive">Adaptive: choose and compare models</option><option value="separate">Keep model outputs separate</option><option value="ensemble">Create a consensus ensemble</option></select>
+              <label class="run-option">ANALYSIS GRID <select id="analysisGrid"><option value="192">192 px · quick review</option><option value="384" selected>384 px · standard</option><option value="768">768 px · detailed</option><option value="1024">1024 px · detailed review</option></select></label>
+              <p class="panel-intro">Dynamic World automatically retains 10 m resolution and uses this setting for block size. Other analyses process the selected AOI on this grid; the report records its resolution. Independent validation labels are preferred. Otherwise a buffered spatial holdout is used.</p>
+              <button class="primary-button full-width run-button" id="runInferenceButton" disabled>Run selected analysis</button>
+            </section>
+          </aside>
+        </div>
+        <section class="raster-panel hidden" id="rasterPanel">
+          <div class="card-heading"><div><div class="eyebrow">SCIENCE-RASTER ADAPTERS</div><h2>Connect imagery to a job</h2></div><span class="plan-step">01</span></div>
+          <div class="raster-panel-intro">Choose a job and scenes, then decide how the inference worker should access full-resolution source pixels. The access record is saved locally and included in the job report.</div>
+          <div class="raster-config-grid">
+            <section class="raster-config-card">
+              <label class="field-label">JOB<select class="select-field" id="rasterAccessJob"></select></label>
+              <label class="field-label">ACCESS MODE<select class="select-field" id="rasterAccessMode"><option value="stream">Stream remote imagery</option><option value="download">Download complete raster</option><option value="local_path">Use locally saved raster path</option></select></label>
+              <label class="field-label">BAND NAMES · OPTIONAL<input class="input-field" id="rasterBandNames" placeholder="BLUE,GREEN,RED,NIR,SWIR1,SWIR2"></label>
+              <label class="field-label">LOCAL PRODUCT TYPE<select class="select-field" id="rasterProductLevel"><option value="unknown">Use catalog metadata</option><option value="L1C">Sentinel-2 L1C · TOA reflectance</option><option value="L2A">Sentinel-2 L2A · surface reflectance</option><option value="HLS">HLS · three-date temporal stack</option><option value="RGB">Very high resolution RGB</option></select></label>
+              <label class="field-label">HLS ACQUISITION DATES · IF TEMPORAL<input class="input-field" id="rasterTemporalDates" placeholder="YYYY-MM-DD,YYYY-MM-DD,YYYY-MM-DD"></label>
+              <div class="raster-mode-explainer" id="rasterModeExplainer"></div>
+              <button class="primary-button full-width" id="configureRasterAccessButton">Configure selected scenes</button>
+            </section>
+            <section class="raster-scene-picker">
+              <div class="raster-picker-heading"><div><div class="eyebrow">JOB IMAGERY</div><h3>Select source scenes</h3></div><button class="text-button" id="selectAllRasterScenes">All</button></div>
+              <div id="rasterSceneList"></div>
+            </section>
+          </div>
+          <div class="raster-access-list" id="rasterAccessList"></div>
+        </section>
+        <section class="review-panel hidden" id="reportsPanel">
+          <div class="card-heading"><div><div class="eyebrow">AUDITABLE OUTPUTS</div><h2>Inference reports & model agreement</h2></div><span class="count-chip" id="reportPanelCount">0 reports</span></div>
+          <div class="report-list" id="reportList"></div>
+        </section>
+        <section class="anomaly-panel hidden" id="anomalyPanel"></section>
+        <section class="training-panel hidden" id="trainingPanel">
+          <button class="secondary-button" type="button" id="backToQualification">← Back to training & qualification</button><div class="training-heading"><div><div class="eyebrow">HUMAN REVIEW LOOP</div><h2>Ground truth & fine-tuning</h2><p>Start here for models that need labels. Draw examples on a source image or import external polygons, then train a new version. You can also correct results after inference.</p></div><span class="plan-step">04</span></div>
+          <div class="label-workflow"><b>1. Choose image & draw examples</b><span>2. Assign classes · keep validation separate</span><span>3. Train & review a new model version</span></div>
+          <section class="reference-editor" aria-label="Label source images before inference">
+            <div class="card-heading"><div><h3>Label your source image</h3><p>No previous inference run required. Saved labels stay attached to this image and job.</p></div><button type="button" class="secondary-button" id="referenceImportShortcut">Import external polygons</button></div>
+            <div class="reference-toolbar"><label>Job<select id="referenceJob" class="select-field"></select></label><label>Image<select id="referenceImage" class="select-field"></select></label><button type="button" class="primary-button" id="openReferenceImage">Open image</button></div>
+            <div class="reference-workspace"><div><div class="reference-tools"><button type="button" data-label-tool="pan">Pan</button><button type="button" data-label-tool="rectangle" aria-pressed="true">Rectangle</button><button type="button" data-label-tool="rotated_box" aria-pressed="false">Rotated object box</button><button type="button" data-label-tool="polygon">Polygon</button><button type="button" data-label-tool="point">Point</button><button type="button" id="finishReferencePolygon">Finish polygon</button><button type="button" id="clearReferenceRegion">Clear drawing</button><button type="button" id="fitReferenceImage">Fit</button></div><div id="referenceCanvas" class="reference-canvas" tabindex="0" aria-label="Source image labeling canvas"><svg id="referenceSvg" xmlns="http://www.w3.org/2000/svg"><g id="referencePlane"><image id="referenceRaster"/><g id="referenceSaved"></g><g id="referenceDrawing"></g></g></svg><p id="referenceEmpty">Choose an image, then select Open image. Scroll to zoom. Draw regions with a known land-cover class.</p></div><p id="referenceStatus" role="status">Labels are saved only when you select Save reference.</p></div>
+            <aside class="reference-form"><h3>Selected region</h3><label>Class<input class="input-field" id="referenceClass" maxlength="80" list="referenceClassNames" placeholder="e.g. Water, Forest, Built-up"><datalist id="referenceClassNames"></datalist></label><label>Use for<select class="select-field" id="referenceRole"><option value="train">Training · improve the classifier</option><option value="validation">Validation · measure quality only</option></select></label><label>Confidence<select class="select-field" id="referenceConfidence"><option value="3">3 / 5 · likely</option><option value="4">4 / 5 · strong</option><option value="5">5 / 5 · certain</option><option value="2">2 / 5 · uncertain</option><option value="1">1 / 5 · tentative</option></select></label><label>Source / note<input class="input-field" id="referenceNotes" maxlength="500" placeholder="How you verified this class"></label><button class="primary-button" id="saveImageReference" disabled>Save reference</button><p>Label at least two classes for local classifiers. Draw several representative areas per class. Small regions may disappear on a coarse analysis grid; use a finer grid if needed.</p><p>Validation references never train the model. Original predictions are preserved.</p></aside></div>
+          </section>
+          <section class="vector-import-card" aria-label="Import external polygon shapefile"><div class="eyebrow">EXTERNAL REFERENCE DATA</div><h3>Import polygon shapefile</h3><p>Upload a ZIP, or select matching .shp, .shx and .dbf files together. Include .prj for automatic coordinate conversion and .cpg for text encoding.</p><div class="vector-import-fields"><label class="field-label">TARGET JOB<select id="vectorImportJob" class="select-field"></select></label><label class="field-label">SHAPEFILE FILES<input id="vectorImportFiles" type="file" multiple accept=".zip,.shp,.shx,.dbf,.prj,.cpg"></label><label class="field-label">SOURCE CRS OVERRIDE (OPTIONAL)<input id="vectorImportCrs" class="input-field" placeholder="Auto from .prj, or EPSG:32636"></label><label class="field-label">TEXT ENCODING<select id="vectorImportEncoding" class="select-field"><option value="">Auto from .cpg / UTF-8</option><option value="utf-8">UTF-8</option><option value="cp1252">Windows-1252</option><option value="cp1255">Windows-1255 · Hebrew</option></select></label><label class="field-label hidden" id="vectorDatasetWrap">DATASET IN ZIP<select id="vectorImportDataset" class="select-field"></select></label></div><button id="readVectorImport" class="secondary-button">Read polygons & attributes</button><div id="vectorImportStatus" class="vector-import-status" role="status"></div><div id="vectorImportPreview" class="hidden"><div id="vectorImportSummary"></div><div class="vector-import-fields"><label class="field-label">CLASS ATTRIBUTE<select id="vectorClassField" class="select-field"></select></label><label class="field-label" id="vectorFixedLabelWrap">ONE CLASS FOR ALL POLYGONS<input id="vectorFixedLabel" class="input-field" maxlength="80" placeholder="e.g. Forest"></label><label class="field-label">IMAGE SCOPE<select id="vectorImportImage" class="select-field"></select></label><label class="field-label">REFERENCE ROLE<select id="vectorImportRole" class="select-field"><option value="train">Training / automatic learning</option><option value="validation">Independent validation only</option></select></label><label class="field-label">CONFIDENCE<select id="vectorImportConfidence" class="select-field"><option value="3">3 · likely</option><option value="4">4 · strong</option><option value="5">5 · certain</option><option value="2">2 · uncertain</option><option value="1">1 · tentative</option></select></label><label class="field-label">SOURCE NOTE<input id="vectorImportNotes" class="input-field" maxlength="500" placeholder="Survey, provider, label date or reference source"></label></div><div id="vectorClassMapping"></div><label class="vector-skip-label"><input id="vectorSkipUnlabelled" type="checkbox">Skip polygons with no class value</label><div class="vector-import-actions"><button id="previewVectorMap" class="secondary-button">Preview polygons on map</button><button id="saveVectorImport" class="primary-button">Import references into job</button></div></div></section>
+          <section id="automaticTrainingPolicy" class="automatic-training-policy" aria-label="Automatic training rule"><h3>Automatic learning from corrections</h3><p>Loading the saved training rule…</p></section>
+          <div class="training-grid">
+            <section class="training-card">
+              <h3>Add reviewed ground truth</h3>
+              <label class="field-label">JOB<select class="select-field" id="groundTruthJob"></select></label>
+              <label class="field-label">LAND-COVER CLASS<input class="input-field" id="groundTruthLabel" maxlength="80" placeholder="e.g. Irrigated crop"></label>
+              <label class="field-label">LABEL ROLE<select class="select-field" id="groundTruthRole"><option value="train">Training reference</option><option value="validation">Independent validation · excluded from training</option></select></label>
+              <label class="field-label">CONFIDENCE<select class="select-field" id="groundTruthConfidence"><option value="5">5 · certain</option><option value="4">4 · strong</option><option value="3" selected>3 · likely</option><option value="2">2 · uncertain</option><option value="1">1 · tentative</option></select></label>
+              <label class="field-label">NOTES<input class="input-field" id="groundTruthNotes" maxlength="500" placeholder="Source or review note"></label>
+              <button class="secondary-button full-width" id="captureGroundTruthButton">⌖ Save current map AOI as ground truth</button>
+              <p class="training-note">Draw a polygon, rectangle, or point in the map workspace first. The exact geometry is retained with the label.</p>
+            </section>
+            <section class="training-card">
+              <h3>Fine-tune from reviewed labels</h3>
+              <label class="field-label">MODEL<select class="select-field" id="fineTuneModel"><option value="random_forest">Random Forest</option><option value="svm">Support Vector Machine</option><option value="xgboost">XGBoost</option><option value="unet">U-Net</option><option value="prithvi">Prithvi-EO foundation model</option><option value="ensemble">LULC Ensemble · refit members</option><option value="dynamicworld">Dynamic World · fine-tune pretrained</option><option value="prithvi_crop">Prithvi crop/LULC · fine-tune pretrained</option><option value="openearthmap">OpenEarthMap · fine-tune pretrained</option></select></label>
+              <div class="training-readiness" id="trainingReadiness">Select a job to see stored reference labels.</div>
+              <button class="primary-button full-width" id="fineTuneButton">Train a new model version</button>
+              <div class="tuning-history" id="tuningHistory"></div>
+            </section>
+            <section class="training-card band-tool">
+              <h3>Band coregistration</h3>
+              <p>Align bands inside a local multispectral or hyperspectral GeoTIFF using phase correlation. This corrects inter-band displacement before band math or classification.</p>
+              <input id="alignmentFile" type="file" accept=".tif,.tiff,image/tiff">
+              <label class="field-label">REFERENCE BAND<input class="input-field" id="referenceBand" type="number" min="1" value="1"></label>
+              <button class="secondary-button full-width" id="alignBandsButton">Align bands & save GeoTIFF</button>
+              <div class="alignment-result" id="alignmentResult"></div>
+            </section>
+          </div>
+          <div class="ground-truth-list" id="groundTruthList"></div>
+        </section>
+      </section>
+    </main>
+    <aside id="inferenceActivity" class="inference-activity hidden" aria-label="Live inference progress"></aside>
+    <div class="toast" id="toast"></div>
+    <dialog id="missionDialog"><form method="dialog" class="mission-dialog-card" id="missionForm"><button class="dialog-close" id="missionDialogClose" type="button" aria-label="Close">×</button><div class="eyebrow">MISSION SETUP</div><h2 id="missionDialogTitle">Add selected scenes</h2><p class="dialog-lede" id="missionDialogLede">Choose where these scenes belong and name the new job.</p><label class="field-label">MISSION<select class="select-field" id="missionMode"><option value="new">Create a new mission</option><option value="existing">Add to an existing mission</option></select></label><label class="field-label" id="newMissionNameWrap">MISSION NAME<input class="input-field" id="newMissionName" maxlength="80" placeholder="e.g. Northern watershed survey"></label><label class="field-label hidden" id="existingMissionWrap">SELECT MISSION<select class="select-field" id="existingMissionSelect"></select></label><label class="field-label" id="jobNameWrap">JOB NAME<input class="input-field" id="newJobName" maxlength="80" placeholder="e.g. Spring vegetation baseline"></label><div class="dialog-scene-count" id="dialogSceneCount"></div><button class="primary-button full-width" id="createJobButton" type="submit">Create mission & job</button></form></dialog>
+    <dialog id="helpDialog" class="help-center" aria-label="Geo Intelligence help and user manual"></dialog>
+    <dialog id="localLibraryDialog" class="local-library-dialog" aria-label="Local imagery library and monitored folders"></dialog>
+  </div>
+  <script src="/static/reference-labels.js?v=0.2.21"></script>
+  <script src="/static/vector.js?v=0.2.21"></script>
+  <script src="/static/image-viewer.js?v=0.2.21"></script>
+  <script src="/static/pseudo-labels.js?v=0.2.21"></script>
+  <script src="/static/review.js?v=0.2.21"></script>
+  <script src="/static/segmentation.js?v=0.2.21"></script>
+  <script src="/static/anomaly.js?v=0.2.21"></script>
+  <script src="/static/app.js?v=inference-job-1"></script>
+  <script src="/static/catalog-downloads.js?v=cdse-safe-1"></script>
+  <script src="/static/workflow-ui.js?v=result-review-1"></script>
+  <script src="/static/services.js?v=world-projection-1"></script>
+  <script src="/static/local-library.js?v=0.2.21"></script>
+  <script src="/static/basemap-manager.js?v=0.2.21"></script>
+  <script src="/static/insights.js?v=managed-model-1"></script>
+  <script src="/static/manual-content.js?v=sqlserver2025-1"></script>
+  <script src="/static/validation.js?v=workspace-recovery-1"></script>
+  <script src="/static/help.js?v=validation-3"></script>
+  <script src="/static/brand-data.js?v=0.2.21"></script>
+  <script src="/static/branding.js?v=0.2.21"></script>
+</body>
+</html>

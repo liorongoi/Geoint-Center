@@ -1,0 +1,44 @@
+[server]
+host = "127.0.0.1"
+[session]
+ttl_seconds = 0
+[map]
+default_basemap = "offline"
+default_dark_basemap = "offline"
+default_terrain = "2d"
+[map.defaults]
+center_lon = 20.0
+center_lat = 20.0
+zoom = 2
+[map.basemaps.offline]
+label = "World · Dark"
+kind = "vector"
+url = "/static/offline/style.json"
+attribution = "Natural Earth · Public domain"
+group = "navigation"
+
+[map.basemaps.offline_light]
+label = "World · Light"
+kind = "vector"
+url = "/static/offline/style-light.json"
+attribution = "Natural Earth · Public domain"
+group = "navigation"
+
+[map.basemaps.osm]
+label = "Street map · OpenStreetMap"
+kind = "raster"
+url = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+attribution = "© OpenStreetMap contributors"
+max_zoom = 19
+[map.basemaps.satellite]
+label = "Satellite / aerial imagery · Esri"
+kind = "raster"
+url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+attribution = "© Esri and imagery contributors"
+max_zoom = 19
+[map.basemaps.carto_dark]
+label = "Dark street map · Carto"
+kind = "raster"
+url = "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+attribution = "© CARTO · © OpenStreetMap contributors"
+max_zoom = 19

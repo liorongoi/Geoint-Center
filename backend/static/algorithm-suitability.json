@@ -1,0 +1,77 @@
+{
+  "dynamicworld": {
+    "satellites": "Sentinel-2 MSI \u00b7 Level-1C",
+    "requirements": "TOA reflectance; B02, B03, B04, B05, B06, B07, B08, B11 and B12 on a 10 m analysis grid.",
+    "limitations": "Not Landsat or L2A. Locally exercised on one Sentinel-2A product; this is not an accuracy guarantee for every scene.",
+    "source": "https://github.com/google/dynamicworld"
+  },
+  "prithvi_crop": {
+    "satellites": "Landsat and Sentinel-2 through HLS L30 / S30",
+    "requirements": "Three real HLS acquisition dates, six surface-reflectance bands per date, 18 channels total at 30 m.",
+    "limitations": "Raw Landsat or Sentinel products are not automatically HLS. One date repeated three times is not valid input.",
+    "source": "https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-1.0-100M-multi-temporal-crop-classification"
+  },
+  "openearthmap": {
+    "satellites": "Very high resolution RGB \u00b7 e.g. suitable WorldView / Pleiades products; aerial and UAV orthophotos",
+    "requirements": "Georeferenced RGB with actual 0.25\u20130.5 m source detail and compatible radiometry.",
+    "limitations": "Not Sentinel-2 or Landsat. Upsampling coarse imagery does not create the required detail. Validate transfer to your imagery.",
+    "source": "https://open-earth-map.org/overview.html"
+  },
+  "prithvi": {
+    "satellites": "HLS-like Sentinel-2 and Landsat 8/9 reflectance",
+    "requirements": "BLUE, GREEN, RED, narrow NIR, SWIR1 and SWIR2; mapped physical reflectance and labeled classes. Sentinel-2 NIR uses B8A.",
+    "limitations": "HLS 30 m is the pretrained input domain. This adapter freezes the encoder and trains a downstream head; it does not use a full hyperspectral cube.",
+    "source": "https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-300M"
+  },
+  "ensemble": {
+    "satellites": "Sentinel-2 / Landsat with Prithvi-compatible reflectance bands",
+    "requirements": "The full five-member ensemble needs the six Prithvi bands, labeled classes and compatible member taxonomies/grids.",
+    "limitations": "It inherits its members\u2019 restrictions. Use individual sensor-flexible models for RGB-only or unmapped hyperspectral inputs."
+  },
+  "sam3_tracker": {
+    "satellites": "Any sensor with a mapped three-band display composite \u00b7 Sentinel-2, Landsat, VHR or hyperspectral-derived RGB",
+    "requirements": "Three explicitly selected display bands plus foreground points or a box prompt.",
+    "limitations": "Uses three bands, not the full spectrum. Detail is limited by ground resolution. Proposes boundaries, not LULC classes; human class approval is required.",
+    "source": "https://github.com/facebookresearch/sam3"
+  },
+  "random_forest": {
+    "satellites": "Sensor-flexible \u00b7 Sentinel-2, Landsat and mapped hyperspectral GeoTIFFs such as Hyperion, EnMAP or PRISMA",
+    "requirements": "Consistent band identities, units and masks; labeled examples for the sensor and class taxonomy.",
+    "limitations": "A trainable architecture, not a ready pretrained model for every satellite. Sensors without an adapter require prepared local GeoTIFFs; accuracy must be validated."
+  },
+  "svm": {
+    "satellites": "Sensor-flexible \u00b7 Sentinel-2, Landsat and mapped hyperspectral GeoTIFFs such as Hyperion, EnMAP or PRISMA",
+    "requirements": "Consistent band identities, units and masks; labeled examples for the sensor and class taxonomy.",
+    "limitations": "A trainable architecture, not a ready pretrained model for every satellite. Sensors without an adapter require prepared local GeoTIFFs; accuracy must be validated."
+  },
+  "xgboost": {
+    "satellites": "Sensor-flexible \u00b7 Sentinel-2, Landsat and mapped hyperspectral GeoTIFFs such as Hyperion, EnMAP or PRISMA",
+    "requirements": "Consistent band identities, units and masks; labeled examples for the sensor and class taxonomy.",
+    "limitations": "A trainable architecture, not a ready pretrained model for every satellite. Sensors without an adapter require prepared local GeoTIFFs; accuracy must be validated."
+  },
+  "unet": {
+    "satellites": "Sensor-flexible \u00b7 Sentinel-2, Landsat and mapped hyperspectral GeoTIFFs such as Hyperion, EnMAP or PRISMA",
+    "requirements": "Mapped bands and spatial training masks; train or adapt for the sensor, resolution and classes.",
+    "limitations": "A trainable architecture, not a ready pretrained model for every satellite. Sensors without an adapter require prepared local GeoTIFFs; accuracy must be validated."
+  },
+  "rx": {
+    "satellites": "Multispectral / hyperspectral \u00b7 Sentinel-2, Landsat, Hyperion, EnMAP or PRISMA with mapped local rasters",
+    "requirements": "All connected science bands on a common grid; meaningful background pixels and consistent calibration.",
+    "limitations": "Fits background statistics for your dataset. Anomaly scores do not identify a semantic class or establish detection accuracy."
+  },
+  "local_rx": {
+    "satellites": "Multispectral / hyperspectral \u00b7 Sentinel-2, Landsat, Hyperion, EnMAP or PRISMA with mapped local rasters",
+    "requirements": "All connected science bands on a common grid; meaningful background pixels and consistent calibration.",
+    "limitations": "Fits background statistics for your dataset. Anomaly scores do not identify a semantic class or establish detection accuracy."
+  },
+  "isolation_forest": {
+    "satellites": "Multispectral / hyperspectral \u00b7 Sentinel-2, Landsat, Hyperion, EnMAP or PRISMA with mapped local rasters",
+    "requirements": "All connected science bands on a common grid; meaningful background pixels and consistent calibration.",
+    "limitations": "Fits background statistics for your dataset. Anomaly scores do not identify a semantic class or establish detection accuracy."
+  },
+  "autoencoder": {
+    "satellites": "Multispectral / hyperspectral \u00b7 Sentinel-2, Landsat, Hyperion, EnMAP or PRISMA with mapped local rasters",
+    "requirements": "All connected science bands on a common grid; meaningful background pixels and consistent calibration.",
+    "limitations": "Spectral reconstruction model fitted to your background; not a pretrained satellite classifier."
+  }
+}

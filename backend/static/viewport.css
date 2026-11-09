@@ -1,0 +1,156 @@
+/* Keep the map and mission navigation anchored to the browser viewport. */
+body { overflow: hidden; }
+.shell { height: 100dvh; min-height: 0; overflow: hidden; }
+.shell > .topbar { flex-shrink: 0; }
+.shell > .layout { flex: 1; min-height: 0; height: auto; overflow: hidden; }
+.shell > .mission-workspace {
+  display: flex;
+  flex-direction: column;
+  padding: 10px clamp(10px, 1.5vw, 24px);
+  overflow: hidden;
+}
+#missionDetail, #missionHub {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+#missionDetail > :not(.mission-detail-header, .mission-guide, .workflow-nav, #missionControlMessage),
+#missionGrid {
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+#missionDetail > .wf { flex: 1; }
+#missionDetail .mission-guide,
+#missionDetail .mission-title-row .eyebrow { display: none; }
+#missionDetail .mission-title-row { padding-bottom: 4px; }
+#missionDetail .workflow-nav { flex: 0 0 auto; position: relative; margin-bottom: 8px; }
+#missionDetail .workflow-nav .mission-more > div { z-index: 12; }
+
+#missionDetail > #missionOperational {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  overflow: hidden;
+}
+#missionOperational > .wf-head { flex: 0 0 auto; margin-bottom: 8px; align-items: center; }
+#missionOperational h2 { margin: 0; }
+.wf-inference-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(160px, 19%) minmax(0, 1fr) minmax(240px, 32%);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 10px;
+}
+.wf-inference-layout > * { min-width: 0; min-height: 0; padding: 10px 12px; }
+.wf-inference-images,
+.wf-inference-options,
+.wf-inference-results { overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.wf-inference-images { max-height: none; }
+.wf-inference-setup { display: flex; flex-direction: column; overflow: hidden; }
+.wf-inference-options { flex: 1; min-height: 0; }
+.wf-inference-runbar { flex: 0 0 auto; padding-top: 8px; border-top: 1px solid var(--wf-line); }
+.wf-inference-results #wfOperationalActivity > h3 { margin: 0 0 8px; }
+.wf-inference-tabs, #filtersTabButton { display: none; }
+.wf-inference-tabs button[aria-pressed="true"] { background: #245365; border-color: #245365; color: #fff; }
+.wf-inference-options > details > summary { padding: 5px 0; cursor: pointer; font-weight: 700; }
+.wf-inference-results .wf-row { align-items: flex-start; }
+.wf-inference-results .wf-row > .wf-actions { width: 100%; }
+.wf-inference-results .wf-row:has(.wf-progress) { flex-direction: column; }
+.wf-inference-results .wf-row > div:first-child { width: 100%; }
+
+@media (max-width: 1199px) {
+  .wf-inference-tabs { display: flex; flex: 0 0 auto; gap: 5px; margin-bottom: 6px; }
+  .wf-inference-tabs button { min-height: 32px; padding: 4px 10px; }
+  .wf-inference-tabs [data-inference-pane="images"] { display: none; }
+  .wf-inference-layout { grid-template-columns: minmax(170px, 25%) minmax(0, 1fr); }
+  .wf-inference-layout:not([data-pane="results"]) > .wf-inference-results,
+  .wf-inference-layout[data-pane="results"] > .wf-inference-setup { display: none; }
+}
+@media (max-width: 1100px) {
+  .shell > .layout { display: grid; grid-template-columns: clamp(215px, 26vw, 270px) minmax(0, 1fr); }
+  .layout > .sidebar, .layout > .map-workspace { min-height: 0; height: auto; }
+  .layout > .sidebar { overflow-y: auto; }
+  .layout > .map-workspace { min-width: 0; }
+  .layout .map-workspace.show-results .results-block.results-overlay {
+    position: static;
+    inset: auto;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .layout .map-workspace.inspect-analysis .map-frame-wrap { min-height: 0; height: auto; flex: 1; }
+  .layout .map-workspace.inspect-analysis .analysis-inspector { max-height: 35%; overflow: auto; }
+}
+@media (max-width: 760px) {
+  .shell > .layout { position: relative; grid-template-columns: minmax(0, 1fr); }
+  .layout > .sidebar { display: none; }
+  .layout.show-filters > .sidebar { display: block; position: absolute; z-index: 15; inset: 40px 0 0; }
+  #filtersTabButton { display: block; }
+  #missionDetail .mission-title-row h1 { font-size: 18px; }
+  #missionDetail .mission-title-row p { display: none; }
+  #missionDetail .workflow-nav > .mission-tab, #missionDetail .workflow-nav > .mission-more > summary {
+    min-height: 32px;
+    padding: 4px 7px;
+  }
+  #missionOperational > .wf-head { align-items: flex-start; gap: 5px; }
+  #missionOperational > .wf-head h2 { font-size: 19px; }
+  #missionOperational > .wf-head .wf-actions { gap: 4px; }
+  #missionOperational > .wf-head button { font-size: 12px; min-height: 30px; padding: 4px 6px; }
+  .wf-inference-tabs [data-inference-pane="images"] { display: inline-flex; }
+  .wf-inference-layout { grid-template-columns: minmax(0, 1fr); }
+  .wf-inference-layout:not([data-pane="images"]) > .wf-inference-images,
+  .wf-inference-layout[data-pane="images"] > .wf-inference-setup { display: none; }
+}
+
+.wf-experiment-entry { margin: 0 0 10px; padding: 3px 9px; border: 1px solid #bfd0da; border-radius: 5px; }
+.wf-inference-options > h3 { margin-bottom: 6px; }
+.wf-inference-results .wf-row { flex-direction: column; }
+@media (max-width: 760px) {
+  .shell > .topbar { gap: 4px; padding: 6px 9px; }
+  .topbar .brand-logo { width: 27px; height: 27px; }
+  .topbar-right { gap: 4px; }
+  .topbar .topbar-nav, .topbar .help-launch { min-height: 32px; padding: 4px 6px; }
+  .topbar #missionCountBadge { display: none; }
+  #missionDetail .mission-actions button { min-height: 30px; padding: 4px 8px; }
+  #missionOperational > .wf-head #wfExistingResults,
+  #missionOperational > .wf-head #wfQualifiedHistory { display: none; }
+}
+
+#missionActionsToggle { display: none; }
+@media (max-width: 760px), (max-height: 680px) {
+  #missionDetail .mission-title-row { position: relative; flex-wrap: nowrap; align-items: center; gap: 8px; }
+  #missionActionsToggle { display: inline-flex; flex: 0 0 auto; min-height: 30px; padding: 4px 8px; }
+  #missionDetail #missionActions { display: none; }
+  #missionActionsToggle[aria-expanded="true"] + #missionActions {
+    position: absolute;
+    z-index: 20;
+    top: 100%;
+    right: 0;
+    display: flex;
+    justify-content: flex-start;
+    width: min(100%, 440px);
+    padding: 8px;
+    border: 1px solid #496366;
+    border-radius: 6px;
+    background: #18272c;
+  }
+}
+@media (max-width: 760px) {
+  .topbar #appVersion { display: none; }
+  #missionDetail .workflow-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #missionDetail .workflow-nav > .mission-tab,
+  #missionDetail .workflow-nav > .mission-more > summary {
+    font-size: 11px;
+    justify-content: center;
+    text-align: center;
+  }
+  #missionDetail .workflow-nav > .mission-more { grid-column: 2 / -1; }
+  #missionDetail .workflow-nav > .mission-more > summary { justify-content: flex-end; }
+  .wf-inference-runbar { gap: 5px; }
+  .wf-inference-runbar button { min-height: 34px; padding: 4px 8px; }
+}

@@ -1,0 +1,38 @@
+{
+  "maplibre-gl.js": {
+    "url": "https://unpkg.com/maplibre-gl@5.23.0/dist/maplibre-gl.js",
+    "sha256": "e5b398823af45165124aef0b7e43ade5e1fc28d22807a5646da3ba38b8bfdc55"
+  },
+  "maplibre-gl.css": {
+    "url": "https://unpkg.com/maplibre-gl@5.23.0/dist/maplibre-gl.css",
+    "sha256": "ab1e70d59ec40465bae7e7030da2f3ccf28133fd502e62bd598eefbadfd7a732"
+  },
+  "terra-draw.umd.js": {
+    "url": "https://unpkg.com/terra-draw@1.33.0/dist/terra-draw.umd.js",
+    "sha256": "b53fffc5a9eb5922d048d51897d44db2da119bf3f42bcec18b3144c5f5ee2aa8"
+  },
+  "terra-draw-maplibre-gl-adapter.umd.js": {
+    "url": "https://unpkg.com/terra-draw-maplibre-gl-adapter@1.4.1/dist/terra-draw-maplibre-gl-adapter.umd.js",
+    "sha256": "8911c43a17620b589585bd600c13f60b2404ef5b0b1fb1125240e2f91c43db83"
+  },
+  "deck.gl.js": {
+    "url": "https://unpkg.com/deck.gl@9.2.11/dist.min.js",
+    "sha256": "94bb02b83d0afcf42d238a64ad6b78040618717801420c5e2a7f82efd883a337"
+  },
+  "maplibre-LICENSE.txt": {
+    "url": "https://unpkg.com/maplibre-gl@5.23.0/LICENSE.txt",
+    "sha256": "ee5fc05a0677eaf69601d2c7db0d9ecd6cc27c3abc1d0733bc9ed34707cf8ef2"
+  },
+  "terra-draw-LICENSE": {
+    "url": "https://raw.githubusercontent.com/JamesLMilner/terra-draw/b6d0c18779b204b054a99d5a6cc1906f95fb3503/LICENSE",
+    "sha256": "78f5dfcbb9d43a76b4919d79dbd23381bb9cb48b4b40e49c050bbc175e3e7e28"
+  },
+  "terra-adapter-LICENSE": {
+    "url": "https://raw.githubusercontent.com/JamesLMilner/terra-draw/569659537f827bf887027e1be25127f4009e96e7/LICENSE",
+    "sha256": "78f5dfcbb9d43a76b4919d79dbd23381bb9cb48b4b40e49c050bbc175e3e7e28"
+  },
+  "deck.gl-LICENSE": {
+    "url": "https://unpkg.com/deck.gl@9.2.11/LICENSE",
+    "sha256": "e499a2c2ba3b9faabe91fdfddf43e329439263264b7148e5548d0ec605cce9f2"
+  }
+}

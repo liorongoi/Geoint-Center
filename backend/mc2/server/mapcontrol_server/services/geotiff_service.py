@@ -1,0 +1,644 @@
+"""GeoTIFF processing service.
+
+Handles downloading, validation, and rendering of GeoTIFF files
+to georeferenced RGBA PNG images for display on the map.
+
+Supports:
+- RGB mode: 3-band composite with band selection
+- Single-band mode: colormap rendering with percentile thresholding
+- NaN/nodata handling (transparent pixels)
+- Alpha/opacity control
+- File size limits with friendly error messages
+"""
+
+from __future__ import annotations
+
+import asyncio
+import io
+import logging
+import os
+import tempfile
+import threading
+import uuid
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import httpx
+import numpy as np
+import rasterio
+from rasterio.enums import MaskFlags, Resampling
+from rasterio.warp import transform_bounds
+from matplotlib import colormaps
+from PIL import Image
+
+from ..runtime_boundary import embedded
+
+logger = logging.getLogger("mapcontrol.geotiff")
+
+# ─── Configuration defaults ──────────────────────────────────────────────────
+
+DEFAULT_MAX_FILE_SIZE_MB = 50
+PREVIEW_EDGE = 2048
+PREVIEW_RENDER_LOCK = threading.Lock()
+TILE_SERVER_MESSAGE = (
+    "Tile server support for large rasters is coming soon — stay tuned!"
+)
+
+# ─── Result dataclass ────────────────────────────────────────────────────────
+
+
+@dataclass
+class GeoTIFFResult:
+    """Result of processing a GeoTIFF file."""
+
+    png_path: str  # Path to the rendered PNG file
+    bounds: list[float]  # [minLon, minLat, maxLon, maxLat] in EPSG:4326
+    width: int  # Pixel width of the output
+    height: int  # Pixel height of the output
+    crs: str  # Original CRS of the GeoTIFF
+    band_count: int  # Number of bands in the source
+    image_url: str  # Relative URL to serve the image
+
+
+@dataclass
+class GeoTIFFError:
+    """Error result when GeoTIFF processing fails."""
+
+    error: str
+    detail: str
+    file_size_mb: float | None = None
+
+
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+
+def _get_file_dir(config=None) -> Path:
+    """Get the file storage directory, creating it if needed."""
+    if config and hasattr(config, "storage"):
+        file_dir = Path(config.storage.file_dir)
+    else:
+        file_dir = Path("./data/files")
+    file_dir.mkdir(parents=True, exist_ok=True)
+    return file_dir
+
+
+def _get_max_file_size_bytes(config=None) -> int:
+    """Get max file size in bytes from config."""
+    max_mb = DEFAULT_MAX_FILE_SIZE_MB
+    if config and hasattr(config, "geotiff"):
+        max_mb = getattr(config.geotiff, "max_file_size_mb", DEFAULT_MAX_FILE_SIZE_MB)
+    return max_mb * 1024 * 1024
+
+
+def _get_tile_server_message(config=None) -> str:
+    """Get the tile server coming-soon message."""
+    if config and hasattr(config, "geotiff"):
+        return getattr(config.geotiff, "tile_server_message", TILE_SERVER_MESSAGE)
+    return TILE_SERVER_MESSAGE
+
+
+async def _download_to_tempfile(url: str, max_bytes: int) -> tuple[str, float]:
+    """Download a URL to a temp file. Returns (path, size_mb).
+    Raises ValueError if too large.
+    """
+    async with httpx.AsyncClient(follow_redirects=False) as client:
+        # Check Content-Length first if available
+        head_resp = await client.head(url, timeout=10.0)
+        if head_resp.is_redirect:
+            raise ValueError("Use the approved direct GeoTIFF URL. Redirects are disabled.")
+        content_length = head_resp.headers.get("content-length")
+        if content_length and int(content_length) > max_bytes:
+            size_mb = int(content_length) / (1024 * 1024)
+            raise ValueError(
+                f"File is {size_mb:.1f} MB, exceeding the "
+                f"{max_bytes / (1024 * 1024):.0f} MB limit."
+            )
+
+        # Stream download
+        tmp = tempfile.NamedTemporaryFile(suffix=".tif", delete=False)
+        total = 0
+        try:
+            async with client.stream("GET", url, timeout=60.0) as resp:
+                resp.raise_for_status()
+                async for chunk in resp.aiter_bytes(chunk_size=65536):
+                    total += len(chunk)
+                    if total > max_bytes:
+                        tmp.close()
+                        os.unlink(tmp.name)
+                        raise ValueError(
+                            f"File exceeds the "
+                            f"{max_bytes / (1024 * 1024):.0f} MB limit "
+                            f"(downloaded {total / (1024 * 1024):.1f} MB so far)."
+                        )
+                    tmp.write(chunk)
+            tmp.close()
+        except Exception:
+            tmp.close()
+            if os.path.exists(tmp.name):
+                os.unlink(tmp.name)
+            raise
+
+    return tmp.name, total / (1024 * 1024)
+
+
+def _resolve_source(source: str, file_dir: Path) -> str | None:
+    """Resolve a source to a local file path.
+    Supports file:// URIs and plain paths. Returns the path string.
+    For http/https, returns None (caller should download).
+    """
+    if source.startswith(("http://", "https://")):
+        if embedded():
+            raise ValueError("Import the GeoTIFF in the application before rendering it on the map.")
+        return None  # Caller must download
+    path=Path(source[7:] if source.startswith("file://") else source)
+    if embedded():
+        root=file_dir.resolve()
+        resolved=path.resolve()
+        if (not resolved.is_relative_to(root) or resolved.suffix.lower() not in ('.tif','.tiff')
+                or path.is_symlink() or any(parent.is_symlink() for parent in path.parents if parent.resolve().is_relative_to(root))):
+            raise ValueError("GeoTIFF rendering is limited to uploaded files in map storage.")
+        if resolved.is_file():
+            with resolved.open('rb') as stream:
+                if stream.read(4) not in (b'II*\x00',b'MM\x00*',b'II+\x00',b'MM\x00+'):
+                    raise ValueError("Only actual TIFF data can be rendered as GeoTIFF.")
+        return str(resolved)
+    return str(path)
+
+
+def _bounds_are_geographic(bounds) -> bool:
+    """Whether [minLon, minLat, maxLon, maxLat] fall within valid lon/lat."""
+    lon_min, lat_min, lon_max, lat_max = bounds
+    return (
+        -180.0 <= lon_min <= 180.0
+        and -180.0 <= lon_max <= 180.0
+        and -90.0 <= lat_min <= 90.0
+        and -90.0 <= lat_max <= 90.0
+    )
+
+
+def _compute_bounds_4326(dataset) -> list[float]:
+    """Compute EPSG:4326 bounds from a rasterio dataset.
+
+    Raises ValueError when the raster has NO CRS and its coordinates aren't
+    valid lon/lat. Such a file is a projected raster that lost its CRS on
+    write (e.g. a change raster differenced from EPSG:3832 inputs whose
+    profile dropped the CRS): assuming 4326 would silently place the overlay
+    at projected-meter coordinates like (-819450, -487230) — off the map, an
+    invisible "phantom" layer. Failing loud lets the caller surface a real
+    error instead. A CRS-less raster that IS already geographic still works.
+    """
+    src_crs = dataset.crs
+    if src_crs is None:
+        b = dataset.bounds
+        bounds = [b.left, b.bottom, b.right, b.top]
+        if not _bounds_are_geographic(bounds):
+            raise ValueError(
+                "GeoTIFF has no CRS and its coordinates are not longitude/"
+                "latitude — it cannot be georeferenced. Re-export the raster "
+                "with a CRS (e.g. copy the source profile's crs/transform)."
+            )
+        return bounds
+
+    bounds = transform_bounds(src_crs, "EPSG:4326", *dataset.bounds)
+    return list(bounds)  # [minLon, minLat, maxLon, maxLat]
+
+
+def _bounds_to_geojson_polygon(bounds: list[float]) -> dict:
+    """Convert [minLon, minLat, maxLon, maxLat] to a GeoJSON Polygon."""
+    min_lon, min_lat, max_lon, max_lat = bounds
+    return {
+        "type": "Feature",
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [min_lon, min_lat],
+                    [max_lon, min_lat],
+                    [max_lon, max_lat],
+                    [min_lon, max_lat],
+                    [min_lon, min_lat],
+                ]
+            ],
+        },
+        "properties": {},
+    }
+
+
+# ─── Masking ────────────────────────────────────────────────────────────────
+
+
+def _preview_shape(ds: Any, bands: list[int]) -> tuple[int, int]:
+    # GDAL still decompresses native blocks when reading a display overview.
+    interleaved = ds.profile.get("interleave") == "pixel"
+    for band in bands:
+        h, w = ds.block_shapes[band - 1]
+        bytes_per_pixel = sum(np.dtype(dtype).itemsize for dtype in ds.dtypes) if interleaved else np.dtype(ds.dtypes[band - 1]).itemsize
+        if h * w * bytes_per_pixel > 64 * 1024**2:
+            raise ValueError("A TIFF block exceeds the map preview memory limit. Use a tiled GeoTIFF for display.")
+    factor = min(1, PREVIEW_EDGE / max(ds.height, ds.width))
+    return max(1, round(ds.height * factor)), max(1, round(ds.width * factor))
+
+
+def _render_preview(render):
+    # Hold the slot until the renderer exits, including when the HTTP client disconnects.
+    from contextlib import nullcontext
+    reservation=nullcontext()
+    if os.getenv('GEO_RESOURCE_ROOT'):
+        from resource_admission import reserve
+        reservation=reserve('Map preview',.5)
+    with PREVIEW_RENDER_LOCK, reservation, rasterio.Env(GDAL_CACHEMAX=64 * 1024**2, GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR"):
+        return render()
+
+
+def _file_mask_invalid(ds: Any, bands: list[int], shape: tuple[int, int]) -> np.ndarray | None:
+    """Pixels the file's own mask band or alpha band marks as empty.
+
+    Nodata tags are handled by the callers (so a nodata override still
+    replaces the tag); this only covers per-dataset masks and alpha bands,
+    which GIS tools and eo-gpt's display writers use. Returns None when the
+    selected bands carry neither.
+    """
+    flags = [ds.mask_flag_enums[b - 1] for b in bands]
+    if not any(MaskFlags.per_dataset in f or MaskFlags.alpha in f for f in flags):
+        return None
+    return (ds.read_masks(bands, out_shape=(len(bands), *shape), resampling=Resampling.nearest) == 0).all(axis=0)
+
+
+# ─── RGB Processing ─────────────────────────────────────────────────────────
+
+
+def _process_rgb(
+    tif_path: str,
+    bands: list[int],
+    alpha: float,
+    nodata_override: float | None,
+) -> tuple[np.ndarray, Any]:
+    """Read 3 bands from a GeoTIFF and produce an RGBA numpy array.
+
+    Returns (rgba_array [H, W, 4] uint8, rasterio_dataset).
+    """
+    if len(bands) != 3:
+        raise ValueError(f"RGB mode requires exactly 3 bands, got {len(bands)}")
+
+    ds = rasterio.open(tif_path)
+    for b in bands:
+        if b < 1 or b > ds.count:
+            ds.close()
+            raise ValueError(
+                f"Band {b} out of range. File has {ds.count} band(s)."
+            )
+
+    # Read the three bands
+    try:
+        shape = _preview_shape(ds, bands)
+        r, g, b_arr = [ds.read(index, out_shape=shape, resampling=Resampling.nearest).astype(np.float64) for index in bands]
+        file_invalid = _file_mask_invalid(ds, bands, shape)
+    except BaseException:
+        ds.close()
+        raise
+
+    # Determine nodata mask. A fill value fills every band, so a pixel is
+    # nodata only when ALL three bands equal it; one band that happens to
+    # equal it (pure red, deep shadow) is data.
+    nodata = nodata_override if nodata_override is not None else ds.nodata
+    mask = np.zeros(r.shape, dtype=bool)
+    if nodata is not None:
+        mask |= (r == nodata) & (g == nodata) & (b_arr == nodata)
+    # A pixel with NaN in any band has no color to draw
+    mask |= np.isnan(r)
+    mask |= np.isnan(g)
+    mask |= np.isnan(b_arr)
+    # Honor the file's own mask / alpha band
+    if file_invalid is not None:
+        mask |= file_invalid
+
+    # Normalize each band to 0-255 using percentile-based histogram stretch
+    # This prevents bright outliers (clouds, sun glint) from crushing the rest to black
+    def normalize_band(arr, m):
+        valid = arr[~m]
+        if len(valid) == 0:
+            return np.zeros_like(arr, dtype=np.uint8)
+        # Use 2nd and 98th percentiles instead of min/max for robust stretching
+        p_low = float(np.percentile(valid, 2))
+        p_high = float(np.percentile(valid, 98))
+        if p_high == p_low:
+            p_high = p_low + 1.0
+        normalized = (arr - p_low) / (p_high - p_low) * 255.0
+        # Masked pixels (possibly NaN) are hidden by alpha; zero them so
+        # NaN never reaches the integer cast.
+        normalized[m] = 0.0
+        return np.clip(normalized, 0, 255).astype(np.uint8)
+
+    if all(ds.dtypes[index - 1] == "uint8" for index in bands):
+        # Rendered RGB and thematic palettes already carry display colors.
+        # A percentile stretch turns a constant orange mask into black.
+        r_u8 = np.where(mask, 0, r).astype(np.uint8)
+        g_u8 = np.where(mask, 0, g).astype(np.uint8)
+        b_u8 = np.where(mask, 0, b_arr).astype(np.uint8)
+    else:
+        r_u8 = normalize_band(r, mask)
+        g_u8 = normalize_band(g, mask)
+        b_u8 = normalize_band(b_arr, mask)
+
+    # Alpha channel: fully opaque for valid pixels, transparent for nodata/NaN
+    # (actual translucency is handled by OpenLayers layer opacity, not baked into PNG)
+    a_u8 = np.full(r.shape, 255, dtype=np.uint8)
+    a_u8[mask] = 0
+
+    # Stack to RGBA
+    rgba = np.stack([r_u8, g_u8, b_u8, a_u8], axis=-1)
+
+    return rgba, ds
+
+
+# ─── Single-Band Processing ─────────────────────────────────────────────────
+
+
+def _process_singleband(
+    tif_path: str,
+    band: int,
+    colormap_name: str,
+    alpha: float,
+    vmin: float | None,
+    vmax: float | None,
+    percentile_min: float | None,
+    percentile_max: float | None,
+    nodata_override: float | None,
+) -> tuple[np.ndarray, Any]:
+    """Read a single band and apply a colormap. Returns (rgba [H,W,4] uint8, dataset)."""
+    ds = rasterio.open(tif_path)
+
+    if band < 1 or band > ds.count:
+        ds.close()
+        raise ValueError(f"Band {band} out of range. File has {ds.count} band(s).")
+
+    try:
+        shape = _preview_shape(ds, [band])
+        data = ds.read(band, out_shape=shape, resampling=Resampling.nearest).astype(np.float64)
+        file_invalid = _file_mask_invalid(ds, [band], shape)
+    except BaseException:
+        ds.close()
+        raise
+
+    # Determine nodata mask
+    nodata = nodata_override if nodata_override is not None else ds.nodata
+    mask = np.isnan(data)
+    if nodata is not None:
+        mask |= data == nodata
+    if file_invalid is not None:
+        mask |= file_invalid
+
+    # Get valid data for statistics
+    valid = data[~mask]
+    if len(valid) == 0:
+        # All nodata — return fully transparent
+        rgba = np.zeros((*data.shape, 4), dtype=np.uint8)
+        return rgba, ds
+
+    # Determine range
+    actual_min = vmin
+    actual_max = vmax
+
+    if percentile_min is not None and actual_min is None:
+        actual_min = float(np.percentile(valid, percentile_min))
+    if percentile_max is not None and actual_max is None:
+        actual_max = float(np.percentile(valid, percentile_max))
+
+    if actual_min is None:
+        actual_min = float(np.nanmin(valid))
+    if actual_max is None:
+        actual_max = float(np.nanmax(valid))
+
+    if actual_max == actual_min:
+        actual_max = actual_min + 1.0
+
+    # Normalize to [0, 1]
+    normalized = (data - actual_min) / (actual_max - actual_min)
+    normalized = np.clip(normalized, 0.0, 1.0)
+
+    # Apply colormap
+    try:
+        cmap = colormaps[colormap_name]
+    except KeyError:
+        available = ", ".join(sorted(colormaps)[:20])
+        raise ValueError(
+            f"Unknown colormap '{colormap_name}'. Some options: {available}"
+        )
+
+    # cmap returns (R, G, B, A) as floats in [0, 1]
+    colored = cmap(normalized)  # shape: (H, W, 4)
+    rgba = (colored * 255).astype(np.uint8)
+
+    # Alpha channel: fully opaque for valid pixels, transparent for nodata/NaN
+    # (actual translucency is handled by OpenLayers layer opacity, not baked into PNG)
+    rgba[:, :, 3] = np.where(mask, 0, 255)
+
+    return rgba, ds
+
+
+# ─── Public API ──────────────────────────────────────────────────────────────
+
+
+async def process_geotiff_rgb(
+    source: str,
+    asset_id: str,
+    bands: list[int] | None = None,
+    alpha: float = 1.0,
+    nodata: float | None = None,
+    config=None,
+) -> GeoTIFFResult | GeoTIFFError:
+    """Process an RGB GeoTIFF and render to PNG.
+
+    Args:
+        source: URL (http/https), file:// URI, or local path
+        asset_id: UUID for the asset (used for filename)
+        bands: 3-element list of band indices (1-based). Default [1,2,3]
+        alpha: Opacity 0.0-1.0
+        nodata: Optional nodata value override
+        config: AppConfig instance
+
+    Returns:
+        GeoTIFFResult on success, GeoTIFFError on failure
+    """
+    if bands is None:
+        bands = [1, 2, 3]
+
+    max_bytes = _get_max_file_size_bytes(config)
+    file_dir = _get_file_dir(config)
+    tif_path = None
+    is_temp = False
+
+    try:
+        # Resolve source
+        local_path = _resolve_source(source,file_dir)
+        if local_path is not None:
+            # Local file
+            if not os.path.exists(local_path):
+                return GeoTIFFError(
+                    error="file_not_found",
+                    detail=f"File not found: {local_path}",
+                )
+            file_size = os.path.getsize(local_path)
+            if file_size > max_bytes:
+                return GeoTIFFError(
+                    error="file_too_large",
+                    detail=(
+                        f"This GeoTIFF is {file_size / (1024*1024):.1f} MB, "
+                        f"exceeding the {max_bytes / (1024*1024):.0f} MB limit "
+                        f"for direct rendering. {_get_tile_server_message(config)}"
+                    ),
+                    file_size_mb=file_size / (1024 * 1024),
+                )
+            tif_path = local_path
+        else:
+            # Download from URL
+            tif_path, size_mb = await _download_to_tempfile(source, max_bytes)
+            is_temp = True
+
+        # Process + PNG encode are CPU-bound (rasterio reads, percentile
+        # stretches, PIL compression) — run off the event loop so WebSocket
+        # traffic (drawn-shape echoes, viewport updates) keeps flowing while
+        # a raster renders.
+        def _render() -> GeoTIFFResult:
+            rgba, ds = _process_rgb(tif_path, bands, alpha, nodata)
+            bounds = _compute_bounds_4326(ds)
+            band_count = ds.count
+            crs_str = str(ds.crs) if ds.crs else "unknown"
+            ds.close()
+
+            img = Image.fromarray(rgba, "RGBA")
+            png_filename = f"{asset_id}.png"
+            png_path = file_dir / png_filename
+            img.save(str(png_path), "PNG")
+
+            return GeoTIFFResult(
+                png_path=str(png_path),
+                bounds=bounds,
+                width=rgba.shape[1],
+                height=rgba.shape[0],
+                crs=crs_str,
+                band_count=band_count,
+                image_url=f"/api/files/{png_filename}",
+            )
+
+        return await asyncio.to_thread(_render_preview, _render)
+
+    except ValueError as e:
+        msg = str(e)
+        if "limit" in msg.lower():
+            return GeoTIFFError(
+                error="file_too_large",
+                detail=f"{msg} {_get_tile_server_message(config)}",
+            )
+        return GeoTIFFError(error="processing_error", detail=str(e))
+    except Exception as e:
+        logger.exception("GeoTIFF RGB processing failed")
+        return GeoTIFFError(error="processing_error", detail=str(e))
+    finally:
+        if is_temp and tif_path and os.path.exists(tif_path):
+            os.unlink(tif_path)
+
+
+async def process_geotiff_singleband(
+    source: str,
+    asset_id: str,
+    band: int = 1,
+    colormap: str = "viridis",
+    alpha: float = 1.0,
+    vmin: float | None = None,
+    vmax: float | None = None,
+    percentile_min: float | None = None,
+    percentile_max: float | None = None,
+    nodata: float | None = None,
+    config=None,
+) -> GeoTIFFResult | GeoTIFFError:
+    """Process a single-band GeoTIFF with colormap and render to PNG.
+
+    Args:
+        source: URL, file:// URI, or local path
+        asset_id: UUID for the asset
+        band: Band index (1-based). Default 1.
+        colormap: Matplotlib colormap name. Default "viridis".
+        alpha: Opacity 0.0-1.0
+        vmin: Manual range minimum
+        vmax: Manual range maximum
+        percentile_min: Lower percentile threshold (e.g. 2 for 2nd percentile)
+        percentile_max: Upper percentile threshold (e.g. 98 for 98th percentile)
+        nodata: Optional nodata value override
+        config: AppConfig instance
+
+    Returns:
+        GeoTIFFResult on success, GeoTIFFError on failure
+    """
+    max_bytes = _get_max_file_size_bytes(config)
+    file_dir = _get_file_dir(config)
+    tif_path = None
+    is_temp = False
+
+    try:
+        local_path = _resolve_source(source,file_dir)
+        if local_path is not None:
+            if not os.path.exists(local_path):
+                return GeoTIFFError(
+                    error="file_not_found",
+                    detail=f"File not found: {local_path}",
+                )
+            file_size = os.path.getsize(local_path)
+            if file_size > max_bytes:
+                return GeoTIFFError(
+                    error="file_too_large",
+                    detail=(
+                        f"This GeoTIFF is {file_size / (1024*1024):.1f} MB, "
+                        f"exceeding the {max_bytes / (1024*1024):.0f} MB limit "
+                        f"for direct rendering. {_get_tile_server_message(config)}"
+                    ),
+                    file_size_mb=file_size / (1024 * 1024),
+                )
+            tif_path = local_path
+        else:
+            tif_path, size_mb = await _download_to_tempfile(source, max_bytes)
+            is_temp = True
+
+        # CPU-bound render off the event loop — same reasoning as the RGB path.
+        def _render() -> GeoTIFFResult:
+            rgba, ds = _process_singleband(
+                tif_path, band, colormap, alpha,
+                vmin, vmax, percentile_min, percentile_max, nodata,
+            )
+            bounds = _compute_bounds_4326(ds)
+            band_count = ds.count
+            crs_str = str(ds.crs) if ds.crs else "unknown"
+            ds.close()
+
+            img = Image.fromarray(rgba, "RGBA")
+            png_filename = f"{asset_id}.png"
+            png_path = file_dir / png_filename
+            img.save(str(png_path), "PNG")
+
+            return GeoTIFFResult(
+                png_path=str(png_path),
+                bounds=bounds,
+                width=rgba.shape[1],
+                height=rgba.shape[0],
+                crs=crs_str,
+                band_count=band_count,
+                image_url=f"/api/files/{png_filename}",
+            )
+
+        return await asyncio.to_thread(_render_preview, _render)
+
+    except ValueError as e:
+        msg = str(e)
+        if "limit" in msg.lower():
+            return GeoTIFFError(
+                error="file_too_large",
+                detail=f"{msg} {_get_tile_server_message(config)}",
+            )
+        return GeoTIFFError(error="processing_error", detail=str(e))
+    except Exception as e:
+        logger.exception("GeoTIFF single-band processing failed")
+        return GeoTIFFError(error="processing_error", detail=str(e))
+    finally:
+        if is_temp and tif_path and os.path.exists(tif_path):
+            os.unlink(tif_path)
