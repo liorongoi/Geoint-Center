@@ -4,6 +4,7 @@ From imagery to intelligence.
 
 This is the Mac web application source for build `0.2.25+mac.web.49`. It includes the web workspace, the MC² map integration, and the enrolled worker client. This build validates worker task identifiers and attempt numbers before creating worker task directories.
 
+- [Remaining requirements](docs/requirements-status.md)
 - [Worker enrollment and validation](docs/worker-validation.md)
 - [Application help](backend/static/user-manual.html)
 - [MC² license](backend/MC2-LICENSE)

@@ -1,0 +1,12 @@
+# Synthetic regression tests; no model frameworks or pretrained weights needed.
+fastapi==0.143.2
+httpx==0.28.1
+python-multipart==0.0.32
+numpy==2.5.4
+rasterio==1.5.2
+scipy==1.18.1
+scikit-learn==1.9.1
+pillow==12.3.0
+pyshp==3.1.6
+cryptography==50.0.2
+mcp==1.28.0

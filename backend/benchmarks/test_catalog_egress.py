@@ -114,3 +114,11 @@ class CatalogEgress(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(seen), 1)
         self.assertEqual(str(seen[0].url), self.endpoint + "?page=2")
         self.assertNotIn("authorization", seen[0].headers)
+
+    async def test_failed_public_dns_sends_no_search_payload(self):
+        from public_raster_transport import public_http_client
+        with patch('public_raster_transport.public_address',side_effect=ValueError('Private DNS answer')),patch.object(httpx.AsyncHTTPTransport,'handle_async_request') as send:
+            async with public_http_client([self.endpoint],timeout=1,allow_search_post=True) as client:
+                with self.assertRaises(httpx.ConnectError):
+                    await client.post(self.endpoint,json={'limit':1})
+        send.assert_not_called()

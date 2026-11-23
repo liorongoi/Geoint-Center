@@ -1,0 +1,19 @@
+name: Safety and worker regressions
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  regressions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Run isolated synthetic regressions
+        run: |
+          docker build -f ci/Dockerfile -t geoint-checks .
+          docker run --rm --network none --read-only --cpus 2 --memory 3g --memory-swap 3g --pids-limit 100 --cap-drop ALL --security-opt no-new-privileges --ulimit cpu=100 --ulimit fsize=67108864 --tmpfs /tmp:rw,nosuid,nodev,size=256m geoint-checks
