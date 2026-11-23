@@ -25,6 +25,33 @@ class InternalTransport(unittest.TestCase):
   self.assertEqual(self.requests,['/redirect'])
   for url in ('http://8.8.8.8','https://169.254.169.254','http://10.0.0.5','https://user:secret@127.0.0.1','https://127.0.0.1?secret=x'):
    with self.subTest(url=url),self.assertRaises(ValueError):InternalHTTP(url)
+ def test_mixed_dns_answer_is_rejected_before_connecting(self):
+  addresses=[(socket.AF_INET,socket.SOCK_STREAM,6,'',(address,443))
+             for address in ('127.0.0.1','8.8.8.8')]
+  with patch('socket.getaddrinfo',return_value=addresses),patch('socket.socket') as connect:
+   with self.assertRaises(ValueError):InternalHTTP('https://mixed.invalid',{'X-Private':'fixture-only'})
+  connect.assert_not_called()
+  self.assertEqual(self.requests,[])
+
+ def test_offline_policy_rejects_lan_before_connecting(self):
+  addresses=[(socket.AF_INET,socket.SOCK_STREAM,6,'',('10.0.0.5',443))]
+  with patch.dict(os.environ,{'SPECTRASCOPE_OFFLINE':'1'}),patch('socket.getaddrinfo',return_value=addresses),patch('socket.socket') as connect:
+   with self.assertRaisesRegex(ValueError,'loopback-only'):InternalHTTP('https://internal.invalid')
+  connect.assert_not_called()
+
+ def test_peer_rejection_prevents_private_request_bytes(self):
+  def reject(sock):raise ValueError('Fixture peer rejected')
+  with self.assertRaisesRegex(ValueError,'Fixture peer rejected'):
+   InternalHTTP(self.url,{'X-Private':'fixture-only'},verify_peer=reject).json('GET','/data')
+  self.assertEqual(self.requests,[])
+
+ def test_json_budget_closes_connection_and_reports_no_payload(self):
+  client=InternalHTTP(self.url)
+  with self.assertRaisesRegex(ValueError,'exceeded its limit'):
+   client.json('GET','/data',maximum=2)
+  self.assertTrue(client.json('GET','/data')['ok'])
+  self.assertEqual(self.requests,['/data','/data'])
+
  def test_real_tls_requires_verified_certificate(self):
   from cryptography import x509
   from cryptography.x509.oid import NameOID,ExtendedKeyUsageOID

@@ -1,0 +1,91 @@
+{
+  "updated": "2026-11-23",
+  "source": "Public-safe summary of the Mac register dated 2026-11-09 and subsequent regression-test merge. Target status has not been independently revalidated.",
+  "active_requirement_ids": [
+    "POLICY-02",
+    "ARCH-02",
+    "ARCH-04"
+  ],
+  "requirements_without_final_evidence": 12,
+  "requirements": [
+    {
+      "id": "POLICY-02",
+      "status": "waiting for target validation",
+      "title": "Connected network safety",
+      "remaining": "Capture permitted destinations and forwarding controls on the actual deployment using synthetic data."
+    },
+    {
+      "id": "ARCH-02",
+      "status": "waiting for target validation",
+      "title": "Distributed inference",
+      "remaining": "Run inference on two enrolled physical hosts; retain worker/device identity and exported file hashes. CUDA needs compatible hardware."
+    },
+    {
+      "id": "ARCH-04",
+      "status": "waiting for target validation",
+      "title": "Distributed training",
+      "remaining": "Run synchronized U-Net across two physical hosts, restart after a committed checkpoint, verify recovery and protected validation splits."
+    },
+    {
+      "id": "DEPLOY-01",
+      "status": "waiting for target validation",
+      "title": "Windows current-user installation",
+      "remaining": "Install prerequisites and app under a standard Windows account; verify launch without elevation."
+    },
+    {
+      "id": "DEPLOY-02",
+      "status": "waiting for target validation",
+      "title": "Windows offline media",
+      "remaining": "Verify USB paths, receipts/resume and launch without downloads on Windows."
+    },
+    {
+      "id": "DEPLOY-04",
+      "status": "waiting for target validation",
+      "title": "Windows update recovery",
+      "remaining": "Verify update and rollback preserve workspace on native Windows."
+    },
+    {
+      "id": "BRAND-01",
+      "status": "waiting for target validation",
+      "title": "Native branding",
+      "remaining": "Inspect branding in existing native installer/app on target."
+    },
+    {
+      "id": "MODEL-04",
+      "status": "on hold",
+      "title": "Rotated few-shot detector",
+      "remaining": "Keep in Training pending operator review; independent qualification gates remain unmet."
+    },
+    {
+      "id": "MODEL-05",
+      "status": "experimental",
+      "title": "DSen2 super-resolution",
+      "remaining": "Keep experimental; performance is scene-dependent and native-resolution validation remains open."
+    },
+    {
+      "id": "AGENT-06",
+      "status": "on hold",
+      "title": "Additional commercial engines",
+      "remaining": "Oracle 19c and unreviewed engine contracts remain pending. Existing supported Db2 contract has isolated evidence."
+    },
+    {
+      "id": "DEPLOY-03",
+      "status": "on hold",
+      "title": "Mac desktop packaging",
+      "remaining": "Native Mac web remains the current path; desktop/hybrid installer validation is deferred."
+    },
+    {
+      "id": "DEPLOY-05",
+      "status": "on hold",
+      "title": "Offline Linux packaging",
+      "remaining": "Deferred by operator instruction."
+    }
+  ],
+  "excluded_scope": [
+    "Private supplier trials and custom integrations requiring supplier access."
+  ],
+  "testing": {
+    "command": "bash scripts/check-regressions.sh",
+    "scope": "Synthetic regression checks only; no physical worker, field accuracy, Windows installation, or deployment-wide traffic claim."
+  }
+}
